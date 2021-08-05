@@ -61,6 +61,7 @@ pub fn search_index(query_json: &str) -> Result<HashMap<String, Value>> {
         .reader()
         .map_err(|e| Error::new(ErrorKind::Other, format!("Index reader: {}", e)))?;
 
+    println!("{}", &index_query.param);
     let query = query_parser
         .parse_query(&index_query.param)
         .expect("Parsing the query failed");
@@ -93,6 +94,9 @@ pub fn search_index(query_json: &str) -> Result<HashMap<String, Value>> {
             }
         }
     }
+    // let snippet_generator =
+    //     SnippetGenerator::create(&searcher, &*query, schema.get_field("body").unwrap())
+    //         ?;
 
     let mut result: HashMap<String, Value> = HashMap::with_capacity(2);
     result.insert("Total".to_string(), serde_json::to_value(count).unwrap());
@@ -104,36 +108,34 @@ pub fn search_index(query_json: &str) -> Result<HashMap<String, Value>> {
                 .map(|(_, doc_address)| {
                     // .map(|(score, doc_address)| {
                     let doc: Document = searcher.doc(*doc_address).unwrap();
-                    let mut result: HashMap<String, Value> = HashMap::new();
-
+                    let mut content: HashMap<String, Value> = HashMap::new();
                     let named_doc = schema.to_named_doc(&doc).0;
-                    let mut raw_field = HashMap::new();
                     for f in named_doc.keys() {
                         if !default_fields.contains(&schema.get_field(&f.to_string()).unwrap()) {
-                            // raw_field.remove(&f.to_string());
-                            raw_field.insert(f.to_string(), named_doc[f].get(0));
+                            content.insert(
+                                f.to_string(),
+                                serde_json::to_value(named_doc[f].get(0)).unwrap(),
+                            );
                         }
                     }
 
-                    result.insert(
-                        "RawField".to_string(),
-                        serde_json::to_value(raw_field).unwrap(),
-                    );
-
-                    let mut snippet: HashMap<String, Value> = HashMap::new();
                     for (f, g) in snippet_map.iter() {
-                        snippet.insert(
+                        content.insert(
                             f.to_string(),
                             serde_json::to_value(g.snippet_from_doc(&doc).to_html()).unwrap(),
                         );
                     }
 
-                    result.insert(
-                        "Snippet".to_string(),
-                        serde_json::to_value(snippet).unwrap(),
-                    );
+                    // content.insert(
+                    //     "Snippet".to_string(),
+                    //     serde_json::to_value(snippet).unwrap(),
+                    // );
 
-                    result
+                    // content.insert(
+                    //     "highlighting".to_string(),
+                    //     serde_json::Value::String(highlight(snippet)),
+                    // );
+                    content
                 })
                 .collect(),
         )
@@ -142,6 +144,22 @@ pub fn search_index(query_json: &str) -> Result<HashMap<String, Value>> {
 
     Ok(result)
 }
+
+// fn highlight(snippet: Snippet) -> String {
+//     let mut result = String::new();
+//     let mut start_from = 0;
+
+//     for fragment_range in snippet.highlighted() {
+//         result.push_str(&snippet.fragments()[start_from..fragment_range.start]);
+//         result.push_str(" --> ");
+//         result.push_str(&snippet.fragments()[fragment_range.clone()]);
+//         result.push_str(" <-- ");
+//         start_from = fragment_range.end;
+//     }
+
+//     result.push_str(&snippet.fragments()[start_from..]);
+//     result
+// }
 
 fn extract_field(input: &str) -> HashSet<String> {
     let mut field: HashSet<String> = HashSet::new();
@@ -153,6 +171,7 @@ fn extract_field(input: &str) -> HashSet<String> {
 
 #[test]
 fn test_search_index() {
+    // let query = "{\"index\":\"wikipedia\",\"param\":\"title:\\\"Vado\\\" AND (url:\\\"https://en.wikipedia.org/wiki?curid=48693283\\\" OR body:\\\"Vado\\\")\",\"size\":20,\"offset\":0}";
     let query = "{\"index\":\"book\",\"param\":\"Text:\\\"圣经\\\"\",\"size\":20,\"offset\":0}";
 
     match search_index(query) {
