@@ -10,4 +10,4 @@ It also extends the following features:
 
 > The project is my first rust project, if you find that the code is not well written, please feel free to correct me.
 
-Finally, thanks to @PSeitz for helping me to solve the error about Chinese word tokenizer. [tantivy/issue#1134](https://github.com/tantivy-search/tantivy/issues/1134), [tantivy-jieba/issues#4](https://github.com/jiegec/tantivy-jieba/issues/4).
+Finally, thanks to @PSeitz for helping me to solve the error about Chinese word tokenizer. ([tantivy/issue#1134](https://github.com/tantivy-search/tantivy/issues/1134), [tantivy-jieba/issues#4](https://github.com/jiegec/tantivy-jieba/issues/4)).
