@@ -76,45 +76,13 @@ impl Tokenizer for JiebaTokenizer {
                 continue;
             }
             tokens.push(Token {
-                offset_from: token.start,
-                offset_to: token.end,
+                offset_from: indices[token.start].0,
+                offset_to: indices[token.end].0,
                 position: token.start,
                 text: String::from(&text[(indices[token.start].0)..(indices[token.end].0)]),
                 position_length: token.end - token.start,
             });
         }
-
-        // if let Some(words) = STOP_WORD. {}
-        // println!("?#:", STOP_WORD);
-        // match STOP_WORD {
-        //     Some(word) => {
-        //         for i in 0..orig_tokens.len() {
-        //             let token = &orig_tokens[i];
-        //             if word.contains(token.word) {
-        //                 continue;
-        //             }
-        //             tokens.push(Token {
-        //                 offset_from: token.start,
-        //                 offset_to: token.end,
-        //                 position: token.start,
-        //                 text: String::from(&text[(indices[token.start].0)..(indices[token.end].0)]),
-        //                 position_length: token.end - token.start,
-        //             });
-        //         }
-        //     }
-        //     None => {
-        //         for i in 0..orig_tokens.len() {
-        //             let token = &orig_tokens[i];
-        //             tokens.push(Token {
-        //                 offset_from: token.start,
-        //                 offset_to: token.end,
-        //                 position: token.start,
-        //                 text: String::from(&text[(indices[token.start].0)..(indices[token.end].0)]),
-        //                 position_length: token.end - token.start,
-        //             });
-        //         }
-        //     }
-        // };
 
         BoxTokenStream::from(JiebaTokenStream { tokens, index: 0 })
     }
