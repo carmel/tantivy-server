@@ -20,6 +20,23 @@ impl Util {
 
         &s[range]
     }
+
+    pub fn fragment_boundary_range(s: &str, mut range: Range<usize>) -> Range<usize> {
+        if s.len() <= range.end {
+            range.end = s.len();
+        } else {
+            while !s.is_char_boundary(range.end) {
+                range.end += 1;
+            }
+        }
+
+        if range.start != 0 {
+            while !s.is_char_boundary(range.start) {
+                range.start -= 1;
+            }
+        }
+        range
+    }
 }
 
 #[test]

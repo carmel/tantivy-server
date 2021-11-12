@@ -1,12 +1,14 @@
 bind_addr: 127.0.0.1:8099
+# byteorder: little or big
+byteorder: little
 log_config: "config/log.yml"
 index:
   base_dir: test_index
+  is_merge: true
+  thread_num: 10
+  # in mb
+  total_heap_size: 100
   tokenizer:
     jieba:
       dict_path: "config/dict.txt"
       stop_word_path: "config/stop_word.txt"
-  add:
-    is_merge: true
-    thread_num: 5
-    buffer_size: 1000000000

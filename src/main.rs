@@ -6,23 +6,46 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_yaml;
 
-use std::collections::HashMap;
 use std::fs::File;
-use std::io::{BufRead, BufReader, ErrorKind, Write};
+use std::io::{BufRead, BufReader, ErrorKind};
 use std::net::{Shutdown, TcpListener};
 use std::thread;
 
 pub mod index;
 mod server;
-mod util;
 
 use crate::server::{Message, Status, TantivyServer};
 
 mod error;
 
+// use clap::Clap;
+
+// #[derive(Clap, Debug)]
+// enum IndexOption {
+//     // #[clap()]
+//     Index(Index),
+// }
+
+// #[derive(Clap, Debug)]
+// struct Index {
+//     /// Print debug info
+//     #[clap(short, long, default_value = "tanvity")]
+//     dir: String,
+// }
+
+// #[derive(Clap, Debug)]
+// struct Config {
+//     #[clap(short, long, default_value = "127.0.0.1:8099")]
+//     bind_addr: String,
+//     #[clap(flatten)]
+//     index: Index,
+//     // #[clap(subcommand)]
+//     // index: IndexOption
+// }
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 struct Config {
     bind_addr: String,
+    byteorder: String,
     log_config: String,
     index: IndexConf,
 }
@@ -36,17 +59,17 @@ lazy_static! {
         serde_yaml::from_reader(f).unwrap()
     };
 
-    static ref HANDSHAKE: HashMap<String, String> = {
-      let mut handshake: HashMap<String,String> = HashMap::with_capacity(2);
-      handshake.insert("greeting".to_string(), "Tantivy Search Engine 1.0".to_string());
+    // static ref HANDSHAKE: HashMap<String, String> = {
+    //   let mut handshake: HashMap<String,String> = HashMap::with_capacity(2);
+    //   handshake.insert("greeting".to_string(), "Tantivy Search Engine 1.0".to_string());
 
-      if cfg!(target_endian = "big") {
-        handshake.insert("target_endian".to_string(), "Big".to_string());
-      } else {
-        handshake.insert("target_endian".to_string(), "Little".to_string());
-      }
-      handshake
-    };
+    //   if cfg!(target_endian = "big") {
+    //     handshake.insert("target_endian".to_string(), "big".to_string());
+    //   } else {
+    //     handshake.insert("target_endian".to_string(), "little".to_string());
+    //   }
+    //   handshake
+    // };
 
     static ref JIEBA: jieba_rs::Jieba = {
       // println!("{}", std::env::current_dir().unwrap().display());
@@ -85,45 +108,54 @@ fn main() {
     for stream in listener.incoming() {
         match stream {
             Ok(mut stream) => {
-                thread::spawn(move || {
-                    stream
-                        .write(&serde_json::to_vec(&*HANDSHAKE).unwrap())
-                        .expect("fail to handshake");
-                    loop {
-                        println!("looping...");
-                        match &server.receive(&mut stream) {
-                            Err(ref e) if e.kind() == ErrorKind::WouldBlock => {
-                                error!("timeout, err={:?}", e);
-                                stream.shutdown(Shutdown::Both).unwrap();
-                                break;
-                            }
-                            Err(ref e) if e.kind() == ErrorKind::UnexpectedEof => {
-                                error!("client disconnected, err={:?}", e);
-                                stream.shutdown(Shutdown::Both).unwrap();
-                                break;
-                            }
-                            Err(e) => {
-                                error!("receive err={:?}", e);
-                                &server.send(
-                                    &mut stream,
-                                    Message {
-                                        status: Status::Wrong,
-                                        message: Some(serde_json::to_value(e.to_string()).unwrap()),
-                                    },
-                                );
-                                stream.shutdown(Shutdown::Both).unwrap();
-                                break;
-                            }
-                            Ok(_) => {
-                                &server.send(
-                                    &mut stream,
-                                    Message {
-                                        status: Status::Ok,
-                                        message: None,
-                                    },
-                                );
-                                break;
-                            }
+                // stream
+                //     .write(&serde_json::to_vec(&*HANDSHAKE).unwrap())
+                //     .expect("fail to handshake");
+                thread::spawn(move || loop {
+                    println!("looping...");
+                    match &server.receive(&mut stream) {
+                        Err(ref e) if e.kind() == ErrorKind::WouldBlock => {
+                            // wait until network socket is ready, typically implemented
+                            // via platform-specific APIs such as epoll or IOCP
+                            // read timed out: shutdown
+                            error!("timeout, err={:?}", e);
+                            stream.shutdown(Shutdown::Both).unwrap();
+                            break;
+                            // continue;
+                        }
+                        Err(ref e)
+                            if e.kind() == ErrorKind::UnexpectedEof
+                                || e.kind() == ErrorKind::ConnectionReset =>
+                        {
+                            error!("client disconnected, err={:?}", e);
+                            // stream
+                            //     .shutdown(Shutdown::Both)
+                            //     .map_err(|e| {
+                            //         println!("------------:{}", e);
+                            //     })
+                            //     .unwrap();
+                            break;
+                        }
+                        Err(e) => {
+                            error!("receive err={:?}", e);
+                            let _ = &server.send(
+                                &mut stream,
+                                Message {
+                                    status: Status::Wrong,
+                                    message: Some(serde_json::to_value(e.to_string()).unwrap()),
+                                },
+                            );
+                            // stream.shutdown(Shutdown::Both).unwrap();
+                            // break;
+                        }
+                        Ok(_) => {
+                            let _ = &server.send(
+                                &mut stream,
+                                Message {
+                                    status: Status::Ok,
+                                    message: None,
+                                },
+                            );
                         }
                     }
                 });

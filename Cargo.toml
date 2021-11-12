@@ -14,7 +14,7 @@ serde_json = "1.0.64"
 serde_yaml = "0.8.17"
 # clap = "3.0.0-beta.2"
 # tantivy = "0.15.3"
-tantivy = { git = "https://github.com/tantivy-search/tantivy", rev = "4a320fd" }
+tantivy = { git = "https://github.com/quickwit-inc/tantivy", rev = "c12e07f0ce401461a4ecd8411b8ebdf51e5f5c6d" }
 # tantivy = { path = "tantivy" }
 jieba-rs = "0.6.5"
 # cang-jie = "0.12.0"

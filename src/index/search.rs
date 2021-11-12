@@ -31,7 +31,12 @@ pub fn search_index(query_json: &str) -> Result<HashMap<String, Value>> {
         index_query.size = 120;
     }
     let index = Index::open_in_dir(Path::new(&CONF.index.base_dir).join(index_query.index))
-        .map_err(|e| Error::new(ErrorKind::Other, format!("Index open_in_dir: {}", e)))?;
+        .map_err(|e| {
+            Error::new(
+                ErrorKind::Other,
+                format!("search_index: open_in_dir: {}", e),
+            )
+        })?;
     index
         .tokenizers()
         .register("jieba", jieba_tokenizer::JiebaTokenizer {});
@@ -61,10 +66,9 @@ pub fn search_index(query_json: &str) -> Result<HashMap<String, Value>> {
         .reader()
         .map_err(|e| Error::new(ErrorKind::Other, format!("Index reader: {}", e)))?;
 
-    println!("{}", &index_query.param);
     let query = query_parser
         .parse_query(&index_query.param)
-        .expect("Parsing the query failed");
+        .map_err(|e| Error::new(ErrorKind::Other, format!("Parsing the query failed: {}", e)))?;
     let searcher = reader.searcher();
     let (top_docs, count) = {
         searcher
@@ -81,16 +85,27 @@ pub fn search_index(query_json: &str) -> Result<HashMap<String, Value>> {
     let mut snippet_map: HashMap<String, SnippetGenerator> = HashMap::new();
     {
         let query_field = extract_field(&index_query.param);
-
-        for f in &default_fields {
-            let fname = schema.get_field_name(*f).to_string();
-            if query_field.contains(&fname) {
+        if query_field.is_empty() {
+            for f in &default_fields {
+                let fname = schema.get_field_name(*f).to_string();
                 snippet_map.insert(
                     fname,
                     SnippetGenerator::create(&searcher, &*query, *f).map_err(|e| {
                         Error::new(ErrorKind::Other, format!("SnippetGenerator create: {}", e))
                     })?,
                 );
+            }
+        } else {
+            for f in &default_fields {
+                let fname = schema.get_field_name(*f).to_string();
+                if query_field.contains(&fname) {
+                    snippet_map.insert(
+                        fname,
+                        SnippetGenerator::create(&searcher, &*query, *f).map_err(|e| {
+                            Error::new(ErrorKind::Other, format!("SnippetGenerator create: {}", e))
+                        })?,
+                    );
+                }
             }
         }
     }
@@ -172,7 +187,8 @@ fn extract_field(input: &str) -> HashSet<String> {
 #[test]
 fn test_search_index() {
     // let query = "{\"index\":\"wikipedia\",\"param\":\"title:\\\"Vado\\\" AND (url:\\\"https://en.wikipedia.org/wiki?curid=48693283\\\" OR body:\\\"Vado\\\")\",\"size\":20,\"offset\":0}";
-    let query = "{\"index\":\"book\",\"param\":\"Text:\\\"圣经\\\"\",\"size\":20,\"offset\":0}";
+    let query = "{\"index\":\"book\",\"param\":\"book_id:\\\"l1\\\"\",\"size\":20,\"offset\":0}";
+    // let query = "{\"index\":\"book\",\"param\":\"H:\\\"99\\\"\",\"size\":20,\"offset\":0}";
 
     match search_index(query) {
         Ok(res) => {

@@ -3,10 +3,10 @@ use log::info;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use std::io::{Error, ErrorKind, Result};
-use std::path::Path;
-use tantivy::{merge_policy::NoMergePolicy, Index};
+use tantivy::merge_policy::NoMergePolicy;
 
 use super::jieba_tokenizer;
+use super::{get_index, get_index_writer};
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct IndexData {
@@ -17,8 +17,7 @@ pub struct IndexData {
 pub fn add_index(index_json: &str) -> Result<()> {
     let json_index = serde_json::from_str::<IndexData>(index_json)?;
 
-    let index = Index::open_in_dir(Path::new(&CONF.index.base_dir).join(json_index.index))
-        .map_err(|e| Error::new(ErrorKind::Other, format!("Index open_in_dir: {}", e)))?;
+    let index = get_index(json_index.index)?;
 
     index
         .tokenizers()
@@ -28,57 +27,41 @@ pub fn add_index(index_json: &str) -> Result<()> {
 
     let schema_clone = schema.clone();
 
+    let mut index_writer = get_index_writer(&index)?;
+    if CONF.index.is_merge {
+        index_writer.set_merge_policy(Box::new(NoMergePolicy));
+    }
     for m in json_index.data {
         let data = serde_json::to_string(&m)?;
         match schema_clone.parse_document(&data) {
             Ok(doc) => {
-                let mut thread_num = 1;
-                if CONF.index.add.thread_num != 0 {
-                    thread_num = CONF.index.add.thread_num;
-                }
-
-                let buffer_size_per_thread = CONF.index.add.buffer_size / thread_num;
-
-                // let mut index_writer = index.writer(buffer_size_per_thread);
-                let mut index_writer = index
-                    .writer_with_num_threads(thread_num, buffer_size_per_thread)
-                    .map_err(|e| {
-                        Error::new(
-                            ErrorKind::Other,
-                            format!("Index writer_with_num_threads: {}", e),
-                        )
-                    })?;
-
-                if CONF.index.add.is_merge {
-                    index_writer.set_merge_policy(Box::new(NoMergePolicy));
-                }
                 index_writer.add_document(doc);
-
-                let index_result = index_writer.commit();
-
-                match index_result {
-                    Ok(docstamp) => {
-                        info!("Commit succeed, docstamp at {}", docstamp);
-                        // info!("Waiting for merging threads");
-                        index_writer.wait_merging_threads().map_err(|e| {
-                            Error::new(ErrorKind::Other, format!("wait_merging_threads: {}", e))
-                        })?;
-                    }
-                    Err(e) => {
-                        index_writer.rollback().unwrap();
-                        return Err(Error::new(
-                            ErrorKind::Other,
-                            format!("index_writer rollback: {}", e),
-                        ));
-                    }
-                }
             }
             Err(e) => {
+                // index_writer.rollback();
                 return Err(Error::new(
                     ErrorKind::Other,
                     format!("DocParsingError: {}", e),
                 ));
             }
+        }
+    }
+    let index_result = index_writer.commit();
+
+    match index_result {
+        Ok(docstamp) => {
+            info!("Commit succeed, docstamp at {}", docstamp);
+            // info!("Waiting for merging threads");
+            index_writer.wait_merging_threads().map_err(|e| {
+                Error::new(ErrorKind::Other, format!("wait_merging_threads: {}", e))
+            })?;
+        }
+        Err(e) => {
+            index_writer.rollback().unwrap();
+            return Err(Error::new(
+                ErrorKind::Other,
+                format!("add_index index_writer rollback: {}", e),
+            ));
         }
     }
     Ok(())

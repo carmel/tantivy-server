@@ -1,10 +1,11 @@
 use crate::index::add::add_index;
 use crate::index::create::create_index;
+use crate::index::delete::delete_index;
 use crate::index::search::search_index;
+use crate::CONF;
 use serde::Serialize;
 use serde_json::Value;
 
-// use byteorder::{BigEndian, ReadBytesExt};
 use serde::Deserialize;
 use std::io::{Read, Result, Write};
 use std::net::TcpStream;
@@ -26,6 +27,7 @@ enum Cmd {
     Create,
     Add,
     Search,
+    Delete,
 }
 
 #[derive(Deserialize, PartialEq, Debug)]
@@ -41,11 +43,14 @@ impl Message {
     pub fn encode(self) -> Vec<u8> {
         let msg = serde_json::to_vec(&self).unwrap();
         let mut buf = Vec::with_capacity(4 + msg.len());
-        if cfg!(target_endian = "big") {
+        if CONF.byteorder == "big" {
             buf.extend_from_slice(&(msg.len() as u32).to_be_bytes());
         } else {
             buf.extend_from_slice(&(msg.len() as u32).to_le_bytes());
         }
+        // if cfg!(target_endian = "big") {
+        // } else {
+        // }
         buf.extend_from_slice(&msg);
         buf
     }
@@ -62,8 +67,9 @@ impl TantivyServer {
     pub fn receive(self, stream: &mut TcpStream) -> Result<()> {
         let mut buf = [0u8; 4];
         stream.read_exact(&mut buf)?;
+        // stream.read_exact(&mut buf)?;
         let len: u32;
-        if cfg!(target_endian = "big") {
+        if CONF.byteorder == "big" {
             len = u32::from_be_bytes(buf);
         } else {
             len = u32::from_le_bytes(buf);
@@ -78,6 +84,9 @@ impl TantivyServer {
             }
             Cmd::Add => {
                 add_index(&msg.body)?;
+            }
+            Cmd::Delete => {
+                delete_index(&msg.body)?;
             }
             Cmd::Search => {
                 let res = search_index(&msg.body)?;

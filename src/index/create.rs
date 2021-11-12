@@ -162,8 +162,12 @@ pub fn create_index(schema_json: &str) -> Result<()> {
         }
     }
     let schema = schema_builder.build();
-    Index::create_in_dir(&directory, schema)
-        .map_err(|e| Error::new(ErrorKind::Other, format!("Index create_in_dir: {}", e)));
+    match Index::create_in_dir(&directory, schema)
+        .map_err(|e| Error::new(ErrorKind::Other, format!("Index create_in_dir: {}", e)))
+    {
+        Ok(_) => Ok(()),
+        Err(e) => Err(e),
+    }
 
     // index.tokenizers().register(
     //     "jieba",
@@ -179,7 +183,7 @@ pub fn create_index(schema_json: &str) -> Result<()> {
     //     .tokenizers()
     //     .register("jieba", jieba_tokenizer::JiebaTokenizer {});
     // StopWordFilter::remove(stop_word.iter().map(|&s| s.to_string()).collect())
-    Ok(())
+    // Ok(())
 }
 
 #[test]
